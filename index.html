@@ -1,129 +1,104 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Upload Image (Firebase)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<title>Upload Image</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 30px; background:#111; color:#fff; }
-    h1 { margin-bottom: 20px; }
-    input { margin: 20px 0; }
-    img { max-width: 90%; margin-top: 20px; border-radius: 10px; }
-    button { padding: 12px 20px; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; margin: 10px; }
-    .upload-btn { background:#4CAF50; color:white; }
-    .retake-btn { background:#f44336; color:white; }
-    #status { margin-top: 20px; font-weight: bold; white-space: pre-wrap; }
-  </style>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 30px;
+    background-color: #111;
+    color: white;
+}
+button {
+    padding: 12px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 10px;
+}
+.upload-btn { background-color: #4CAF50; color: white; }
+#status { margin-top: 20px; font-weight: bold; }
+img { max-width: 90%; margin-top: 20px; border-radius: 10px; }
+</style>
 </head>
 
 <body>
-  <h1>Upload Photo</h1>
 
-  <input type="file" id="fileInput" accept="image/*" capture="environment" />
-  <br />
-  <img id="preview" src="" style="display:none;" />
-  <br />
+<h1>Upload Photo</h1>
 
-  <button class="upload-btn" id="uploadBtn">Upload</button>
-  <button class="retake-btn" onclick="retake()">Retake</button>
+<input type="file" id="fileInput" accept="image/*">
 
-  <div id="status"></div>
+<br>
+<img id="preview" style="display:none;">
+<br>
 
-  <!-- Firebase (CDN) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
-    import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+<button class="upload-btn" onclick="uploadImage()">Upload</button>
 
-    // 🔥 REPLACE THIS with your Firebase Web App config
-    const firebaseConfig = {
-      apiKey: "PASTE",
-      authDomain: "PASTE",
-      projectId: "PASTE",
-      storageBucket: "PASTE",
-      messagingSenderId: "PASTE",
-      appId: "PASTE"
+<div id="status"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js"></script>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "PASTE_API_KEY",
+  authDomain: "seeking-gut.firebaseapp.com",
+  projectId: "seeking-gut",
+  storageBucket: "seeking-gut.appspot.com",
+  messagingSenderId: "PASTE_SENDER_ID",
+  appId: "PASTE_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const storage = getStorage(app);
+
+let selectedFile = null;
+
+document.getElementById("fileInput").addEventListener("change", function(event) {
+    selectedFile = event.target.files[0];
+    if (!selectedFile) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const preview = document.getElementById("preview");
+        preview.src = e.target.result;
+        preview.style.display = "block";
     };
+    reader.readAsDataURL(selectedFile);
+});
 
-    const app = initializeApp(firebaseConfig);
-    const storage = getStorage(app);
-    const db = getFirestore(app);
-
-    // ✅ Settings
-    const OBJECT_ID = "latest"; // keep simple for now
-    const STORAGE_PATH = `uploads/${OBJECT_ID}/latest.jpg`; // always overwrite same file
-    const COOLDOWN_MS = 10000;
-
-    let selectedFile = null;
-    let lastUploadTime = 0;
-
-    const statusEl = document.getElementById("status");
-    const previewEl = document.getElementById("preview");
-    const fileInputEl = document.getElementById("fileInput");
-    const uploadBtn = document.getElementById("uploadBtn");
-
-    fileInputEl.addEventListener("change", (event) => {
-      selectedFile = event.target.files[0];
-      if (!selectedFile) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        previewEl.src = e.target.result;
-        previewEl.style.display = "block";
-        statusEl.innerText = "";
-      };
-      reader.readAsDataURL(selectedFile);
-    });
-
-    window.retake = function() {
-      fileInputEl.value = "";
-      previewEl.style.display = "none";
-      statusEl.innerText = "";
-      selectedFile = null;
-    };
-
-    uploadBtn.addEventListener("click", uploadImage);
-
-    async function uploadImage() {
-      const now = Date.now();
-      if (now - lastUploadTime < COOLDOWN_MS) {
-        statusEl.innerText = "Please wait 10 seconds before uploading again.";
+async function uploadImage() {
+    if (!selectedFile) {
+        document.getElementById("status").innerText = "No image selected.";
         return;
-      }
-
-      if (!selectedFile) {
-        statusEl.innerText = "No image selected.";
-        return;
-      }
-
-      statusEl.innerText = "Uploading to Firebase...";
-      uploadBtn.disabled = true;
-
-      try {
-        // Upload to Storage (overwrite same path)
-        const storageRef = ref(storage, STORAGE_PATH);
-        await uploadBytes(storageRef, selectedFile, { contentType: selectedFile.type });
-
-        // Get a public download URL
-        const url = await getDownloadURL(storageRef);
-
-        // Save "latest URL" in Firestore so Unity can read it
-        await setDoc(doc(db, "latestUploads", OBJECT_ID), {
-          url,
-          storagePath: STORAGE_PATH,
-          updatedAt: serverTimestamp()
-        });
-
-        statusEl.innerText = "Upload successful!\nSaved latest URL for Unity.";
-        lastUploadTime = Date.now();
-
-      } catch (err) {
-        statusEl.innerText = "Upload failed:\n" + err.message;
-      } finally {
-        uploadBtn.disabled = false;
-      }
     }
-  </script>
+
+    document.getElementById("status").innerText = "Uploading...";
+
+    const imageRef = ref(storage, "latest.png");
+
+    try {
+        await uploadBytes(imageRef, selectedFile);
+        document.getElementById("status").innerText = "Upload successful!";
+    } catch (error) {
+        document.getElementById("status").innerText = "Upload failed.";
+        console.error(error);
+    }
+}
+
+window.uploadImage = uploadImage;
+
+</script>
+
 </body>
 </html>
