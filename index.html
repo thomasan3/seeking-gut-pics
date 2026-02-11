@@ -1,33 +1,303 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Upload Photo</title>
+  <title>my seeking gut — Upload</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 30px; background:#111; color:#fff; }
-    h1 { margin-bottom: 20px; }
-    input { margin: 20px 0; }
-    img { max-width: 92%; margin-top: 18px; border-radius: 10px; display:none; }
-    button { padding: 12px 20px; font-size: 16px; border:none; border-radius: 8px; cursor:pointer; margin: 10px; }
-    .upload-btn { background:#4CAF50; color:#fff; }
-    .retake-btn { background:#f44336; color:#fff; }
-    #status { margin-top: 18px; font-weight: bold; }
+    :root{
+      --bg:#0b0c10;
+      --panel:#11141a;
+      --panel2:#0f1217;
+      --text:#f3f4f6;
+      --muted:#a8b0bd;
+      --accent:#7c3aed;   /* purple */
+      --accent2:#22c55e;  /* green */
+      --danger:#ef4444;
+      --border:rgba(255,255,255,.08);
+      --shadow: 0 20px 60px rgba(0,0,0,.45);
+      --radius:18px;
+    }
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 700px at 20% 10%, rgba(124,58,237,.22), transparent 60%),
+        radial-gradient(900px 600px at 80% 0%, rgba(34,197,94,.14), transparent 55%),
+        radial-gradient(900px 600px at 50% 90%, rgba(255,255,255,.06), transparent 60%),
+        var(--bg);
+      color:var(--text);
+    }
+
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 26px 18px 60px;
+    }
+
+    .hero{
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      overflow:hidden;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
+    }
+
+    .hero-img{
+      width:100%;
+      height: 210px;
+      object-fit: cover;
+      display:block;
+      filter: contrast(1.05) brightness(.95);
+    }
+
+    .hero-body{
+      padding: 18px 18px 16px;
+    }
+
+    .title{
+      margin:0;
+      font-size: 28px;
+      letter-spacing: .2px;
+      line-height: 1.2;
+    }
+    .subtitle{
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    @media (max-width: 860px){
+      .grid{ grid-template-columns: 1fr; }
+      .hero-img{ height: 190px; }
+    }
+
+    .card{
+      border:1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(17,20,26,.72);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 16px 50px rgba(0,0,0,.35);
+      padding: 16px;
+    }
+
+    .card h2{
+      margin:0 0 10px;
+      font-size: 16px;
+      color: #e9eaf0;
+      letter-spacing:.2px;
+    }
+
+    .desc{
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    .pillrow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top: 12px;
+    }
+    .pill{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #cfd6e3;
+    }
+
+    /* Upload UI */
+    .uploader{
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+    }
+
+    .filebox{
+      border:1px dashed rgba(255,255,255,.18);
+      background: rgba(255,255,255,.03);
+      border-radius: 14px;
+      padding: 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+    }
+    .filebox-left{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width: 0;
+    }
+    .filebox-title{
+      font-size: 14px;
+      margin:0;
+      color:#e8ebf5;
+    }
+    .filebox-hint{
+      font-size: 12px;
+      margin:0;
+      color: var(--muted);
+    }
+
+    input[type="file"]{ display:none; }
+
+    .btn{
+      appearance:none;
+      border:none;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 14px;
+      cursor:pointer;
+      font-weight: 600;
+      transition: transform .06s ease, opacity .2s ease;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
+      user-select:none;
+      white-space: nowrap;
+    }
+    .btn:active{ transform: scale(.98); }
+    .btn:disabled{ opacity:.55; cursor:not-allowed; }
+
+    .btn-accent{
+      background: linear-gradient(135deg, rgba(124,58,237,.95), rgba(124,58,237,.65));
+      color:#fff;
+      box-shadow: 0 12px 30px rgba(124,58,237,.22);
+    }
+    .btn-upload{
+      background: linear-gradient(135deg, rgba(34,197,94,.95), rgba(34,197,94,.65));
+      color:#06240f;
+      box-shadow: 0 12px 30px rgba(34,197,94,.18);
+    }
+    .btn-danger{
+      background: rgba(239,68,68,.14);
+      color:#ffd3d3;
+      border:1px solid rgba(239,68,68,.28);
+    }
+
+    .preview{
+      width: 100%;
+      border-radius: 14px;
+      display:none;
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 16px 40px rgba(0,0,0,.35);
+      max-height: 380px;
+      object-fit: contain;
+      background: rgba(0,0,0,.25);
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    #status{
+      margin-top: 2px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .status-good{ color:#b8f7c9 !important; }
+    .status-bad{ color:#ffb4b4 !important; }
+
+    .foot{
+      margin-top: 18px;
+      color: rgba(168,176,189,.85);
+      font-size: 12px;
+      text-align:center;
+    }
   </style>
 </head>
 
 <body>
-  <h1>Upload Photo</h1>
+  <div class="wrap">
+    <!-- HERO -->
+    <div class="hero">
+      <!-- ✅ Your image -->
+      <img class="hero-img" src="YOUR_IMAGE_FILENAME.png" alt="my seeking gut visual" />
+      <div class="hero-body">
+        <h1 class="title">my seeking gut (2027)</h1>
+        <p class="subtitle">
+          Upload portal for audience images → updates the scene in real time.
+        </p>
+      </div>
+    </div>
 
-  <input type="file" id="fileInput" accept="image/*" capture="environment" />
-  <br />
-  <img id="preview" />
-  <br />
-  <button class="upload-btn" id="uploadBtn">Upload</button>
-  <button class="retake-btn" id="retakeBtn">Retake</button>
+    <div class="grid">
+      <!-- PROJECT DESCRIPTION -->
+      <div class="card">
+        <h2>About the work</h2>
+        <p class="desc">
+          A performance mash-up that explores the cross-cultural intersections of art, technology and healing,
+          through the ancient Korean spiritual cleansing ritual “Ssitkim-gut”.
+          <br><br>
+          Dean Moss choreographs and directs a collaboration including Semi Ryu, Ph.D – Professor, Department of Kinetic Imaging,
+          Virginia Commonwealth University (VCU) School of the Arts, Associate Professor Department of Internal Medicine – her research
+          focused on Korean healing rituals, Virtual Body, and Extended Reality; and Soo Jung Chae, a renown Pansori singer,
+          Shamanic practitioner, and a professor of Korean Traditional Arts at Korea National University for the Arts.
+          Incorporating AR/VR headset immersion, and audience participation, <em>my seeking gut</em> submits humbly that an embrace
+          of darkness is requisite for renewal.
+          <br><br>
+          The work is currently in-development with Korean and US premieres projected for fall 2026/spring 2027.
+          New York Live Arts will present a talk on the work January 11, 2026, during its Live Artery/Artist’s Salon.
+        </p>
 
-  <div id="status"></div>
+        <div class="pillrow">
+          <span class="pill">AR/VR immersion</span>
+          <span class="pill">Audience participation</span>
+          <span class="pill">Ssitkim-gut</span>
+          <span class="pill">VCU Kinetic Imaging</span>
+        </div>
+      </div>
+
+      <!-- UPLOADER -->
+      <div class="card">
+        <h2>Upload an image</h2>
+
+        <div class="uploader">
+          <label class="filebox" for="fileInput">
+            <div class="filebox-left">
+              <p class="filebox-title" id="fileLabel">Choose a photo</p>
+              <p class="filebox-hint">Camera or gallery • This overwrites <strong>latest.png</strong></p>
+            </div>
+            <span class="btn btn-accent" role="button">Select</span>
+          </label>
+
+          <input type="file" id="fileInput" accept="image/*" capture="environment" />
+
+          <img id="preview" class="preview" alt="preview" />
+
+          <div class="row">
+            <button class="btn btn-upload" id="uploadBtn">Upload</button>
+            <button class="btn btn-danger" id="retakeBtn">Clear</button>
+          </div>
+
+          <div id="status">Ready.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      This page is for uploading audience images only. No one needs GitHub access.
+    </div>
+  </div>
 
   <!-- ✅ Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -103,13 +373,13 @@ const firebaseConfig = {
         // Get a URL you can paste into Unity to test
         const url = await fileRef.getDownloadURL();
 
-        statusEl.innerText = "Upload successful ✅";
+        statusEl.innerText = "Upload successful";
         console.log("DOWNLOAD URL (paste into Unity):", url);
 
         lastUploadTime = Date.now();
       } catch (err) {
         console.error(err);
-        statusEl.innerText = "Upload failed ❌ " + (err?.message || "");
+        statusEl.innerText = "Upload failed" + (err?.message || "");
       } finally {
         document.getElementById("uploadBtn").disabled = false;
       }
