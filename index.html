@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Image</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 30px;
+            background-color: #111;
+            color: white;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        input {
+            margin: 20px 0;
+        }
+
+        img {
+            max-width: 90%;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+
+        button {
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        .upload-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .retake-btn {
+            background-color: #f44336;
+            color: white;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Upload Photo</h1>
+
+<input type="file" id="fileInput" accept="image/*" capture="environment">
+
+<br>
+
+<img id="preview" src="" style="display:none;">
+
+<br>
+
+<button class="upload-btn" onclick="uploadImage()">Upload</button>
+<button class="retake-btn" onclick="retake()">Retake</button>
+
+<div id="status"></div>
+
+<script>
+
+const githubUsername = "YOUR_GITHUB_USERNAME";
+const repoName = "YOUR_REPO_NAME";
+const githubToken = "YOUR_GITHUB_TOKEN";
+const filePath = "latest.png";
+
+let selectedFile = null;
+let lastUploadTime = 0;
+
+document.getElementById("fileInput").addEventListener("change", function(event) {
+    selectedFile = event.target.files[0];
+
+    if (!selectedFile) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const preview = document.getElementById("preview");
+        preview.src = e.target.result;
+        preview.style.display = "block";
+    };
+    reader.readAsDataURL(selectedFile);
+});
+
+function retake() {
+    document.getElementById("fileInput").value = "";
+    document.getElementById("preview").style.display = "none";
+    document.getElementById("status").innerText = "";
+}
+
+async function uploadImage() {
+
+    const now = Date.now();
+    if (now - lastUploadTime < 10000) {
+        document.getElementById("status").innerText = "Please wait 10 seconds before uploading again.";
+        return;
+    }
+
+    if (!selectedFile) {
+        document.getElementById("status").innerText = "No image selected.";
+        return;
+    }
+
+    document.getElementById("status").innerText = "Uploading...";
+
+    const base64 = await toBase64(selectedFile);
+
+    const apiUrl = `https://api.github.com/repos/${githubUsername}/${repoName}/contents/${filePath}`;
+
+    let sha = null;
+
+    const getResponse = await fetch(apiUrl, {
+        headers: {
+            Authorization: `token ${githubToken}`
+        }
+    });
+
+    if (getResponse.ok) {
+        const data = await getResponse.json();
+        sha = data.sha;
+    }
+
+    const uploadResponse = await fetch(apiUrl, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `token ${githubToken}`
+        },
+        body: JSON.stringify({
+            message: "Update latest image",
+            content: base64.split(',')[1],
+            sha: sha
+        })
+    });
+
+    if (uploadResponse.ok) {
+        document.getElementById("status").innerText = "Upload successful!";
+        lastUploadTime = Date.now();
+    } else {
+        document.getElementById("status").innerText = "Upload failed.";
+    }
+}
+
+function toBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+}
+
+</script>
+
+</body>
+</html>
