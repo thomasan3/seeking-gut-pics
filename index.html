@@ -4,28 +4,37 @@
   <meta charset="UTF-8" />
   <title>Upload Photo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <style>
-    body { font-family: Arial, sans-serif; text-align:center; padding:30px; background:#111; color:#fff; }
-    img { max-width: 90%; margin-top: 15px; border-radius: 10px; display:none; }
-    button { padding: 12px 20px; font-size: 16px; border:none; border-radius: 8px; cursor:pointer; margin:8px; }
+    body { font-family: Arial, sans-serif; text-align: center; padding: 30px; background:#111; color:#fff; }
+    h1 { margin-bottom: 20px; }
+    input { margin: 20px 0; }
+    img { max-width: 92%; margin-top: 18px; border-radius: 10px; display:none; }
+    button { padding: 12px 20px; font-size: 16px; border:none; border-radius: 8px; cursor:pointer; margin: 10px; }
     .upload-btn { background:#4CAF50; color:#fff; }
     .retake-btn { background:#f44336; color:#fff; }
-    #status { margin-top: 16px; font-weight:bold; white-space:pre-wrap; }
+    #status { margin-top: 18px; font-weight: bold; }
   </style>
 </head>
 
 <body>
   <h1>Upload Photo</h1>
+
   <input type="file" id="fileInput" accept="image/*" capture="environment" />
   <br />
   <img id="preview" />
   <br />
   <button class="upload-btn" id="uploadBtn">Upload</button>
   <button class="retake-btn" id="retakeBtn">Retake</button>
+
   <div id="status"></div>
 
-  <!-- IMPORTANT: THIS MUST BE type="module" -->
-  <script type="module">
+  <!-- ✅ Firebase (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+
+  <script>
+    // ✅ 1) Paste YOUR firebaseConfig here (from Firebase console > Project settings > Web app)
 const firebaseConfig = {
   apiKey: "AIzaSyAGBk_qMddYXMl24Em8J_IGb6GxQxQeBa4",
   authDomain: "seeking-gut.firebaseapp.com",
@@ -37,84 +46,74 @@ const firebaseConfig = {
   measurementId: "G-CXXNYWC665"
 };
 
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getStorage, ref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+    firebase.initializeApp(firebaseConfig);
+    const storage = firebase.storage();
 
-    const app = initializeApp(firebaseConfig);
-    const storage = getStorage(app);
+    // ✅ Always overwrite this single file:
+    const FILE_PATH = "latest.png";
+
+    let selectedFile = null;
+    let lastUploadTime = 0;
 
     const fileInput = document.getElementById("fileInput");
     const preview = document.getElementById("preview");
     const statusEl = document.getElementById("status");
-    const uploadBtn = document.getElementById("uploadBtn");
-    const retakeBtn = document.getElementById("retakeBtn");
 
-    let selectedFile = null;
-    let lastUploadTime = 0;
-    const COOLDOWN_MS = 10000;
-
-    const STORAGE_PATH = "uploads/latest.png";
-
-    fileInput.addEventListener("change", (e) => {
-      selectedFile = e.target.files?.[0] || null;
+    fileInput.addEventListener("change", (event) => {
+      selectedFile = event.target.files[0];
       if (!selectedFile) return;
 
       const reader = new FileReader();
-      reader.onload = (evt) => {
-        preview.src = evt.target.result;
+      reader.onload = (e) => {
+        preview.src = e.target.result;
         preview.style.display = "block";
-        statusEl.textContent = "";
       };
       reader.readAsDataURL(selectedFile);
     });
 
-    function retake() {
+    document.getElementById("retakeBtn").addEventListener("click", () => {
       fileInput.value = "";
-      selectedFile = null;
       preview.src = "";
       preview.style.display = "none";
-      statusEl.textContent = "";
-    }
+      statusEl.innerText = "";
+      selectedFile = null;
+    });
 
-    function uploadImage() {
+    document.getElementById("uploadBtn").addEventListener("click", async () => {
       const now = Date.now();
-      if (now - lastUploadTime < COOLDOWN_MS) {
-        const waitSec = Math.ceil((COOLDOWN_MS - (now - lastUploadTime)) / 1000);
-        statusEl.textContent = `Please wait ${waitSec}s before uploading again.`;
+      if (now - lastUploadTime < 3000) {
+        statusEl.innerText = "Please wait a few seconds before uploading again.";
         return;
       }
 
       if (!selectedFile) {
-        statusEl.textContent = "No image selected.";
+        statusEl.innerText = "No image selected.";
         return;
       }
 
-      const fileRef = ref(storage, STORAGE_PATH);
-      statusEl.textContent = "Starting upload...";
-      uploadBtn.disabled = true;
+      try {
+        statusEl.innerText = "Uploading...";
+        document.getElementById("uploadBtn").disabled = true;
 
-      const task = uploadBytesResumable(fileRef, selectedFile);
+        const fileRef = storage.ref().child(FILE_PATH);
 
-      task.on("state_changed",
-        (snap) => {
-          const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-          statusEl.textContent = `Uploading... ${pct}%`;
-        },
-        (err) => {
-          console.error(err);
-          statusEl.textContent = `Upload failed: ${err.message}`;
-          uploadBtn.disabled = false;
-        },
-        () => {
-          lastUploadTime = Date.now();
-          statusEl.textContent = "Upload successful ✅";
-          uploadBtn.disabled = false;
-        }
-      );
-    }
+        // Overwrite latest.png
+        await fileRef.put(selectedFile, { contentType: selectedFile.type });
 
-    uploadBtn.addEventListener("click", uploadImage);
-    retakeBtn.addEventListener("click", retake);
+        // Get a URL you can paste into Unity to test
+        const url = await fileRef.getDownloadURL();
+
+        statusEl.innerText = "Upload successful ✅";
+        console.log("DOWNLOAD URL (paste into Unity):", url);
+
+        lastUploadTime = Date.now();
+      } catch (err) {
+        console.error(err);
+        statusEl.innerText = "Upload failed ❌ " + (err?.message || "");
+      } finally {
+        document.getElementById("uploadBtn").disabled = false;
+      }
+    });
   </script>
 </body>
 </html>
