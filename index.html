@@ -1,104 +1,178 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Upload Image</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>Upload Photo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<style>
-body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    padding: 30px;
-    background-color: #111;
-    color: white;
-}
-button {
-    padding: 12px 20px;
-    font-size: 16px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    margin: 10px;
-}
-.upload-btn { background-color: #4CAF50; color: white; }
-#status { margin-top: 20px; font-weight: bold; }
-img { max-width: 90%; margin-top: 20px; border-radius: 10px; }
-</style>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 30px;
+      background-color: #111;
+      color: white;
+    }
+    h1 { margin-bottom: 10px; }
+    p { opacity: 0.85; }
+    input { margin: 20px 0; }
+    img {
+      max-width: 90%;
+      margin-top: 15px;
+      border-radius: 10px;
+      display: none;
+    }
+    button {
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 8px;
+    }
+    .upload-btn { background-color: #4CAF50; color: white; }
+    .retake-btn { background-color: #f44336; color: white; }
+    #status { margin-top: 16px; font-weight: bold; }
+    #small { font-size: 12px; opacity: 0.75; margin-top: 10px; }
+  </style>
 </head>
 
 <body>
+  <h1>Upload Photo</h1>
+  <p>Take a photo, preview it, then upload.</p>
 
-<h1>Upload Photo</h1>
+  <input type="file" id="fileInput" accept="image/*" capture="environment" />
 
-<input type="file" id="fileInput" accept="image/*">
+  <br />
+  <img id="preview" src="" />
 
-<br>
-<img id="preview" style="display:none;">
-<br>
+  <br />
+  <button class="upload-btn" id="uploadBtn">Upload</button>
+  <button class="retake-btn" id="retakeBtn">Retake</button>
 
-<button class="upload-btn" onclick="uploadImage()">Upload</button>
+  <div id="status"></div>
+  <div id="small"></div>
 
-<div id="status"></div>
-
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js"></script>
-
-<script type="module">
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getStorage, ref, uploadBytes } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-
+  <script type="module">
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAGBk_qMddYXMl24Em8J_IGb6GxQxQeBa4",
   authDomain: "seeking-gut.firebaseapp.com",
+  databaseURL: "https://seeking-gut-default-rtdb.firebaseio.com",
   projectId: "seeking-gut",
   storageBucket: "seeking-gut.firebasestorage.app",
   messagingSenderId: "934480362973",
-  appId: "1:934480362973:web:5a29fdb02e794f88e88a34"
+  appId: "1:934480362973:web:5a29fdb02e794f88e88a34",
+  measurementId: "G-CXXNYWC665"
 };
 
-const app = initializeApp(firebaseConfig);
-const storage = getStorage(app);
+    // ====== 2) Firebase imports (ES Modules) ======
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import {
+      getStorage,
+      ref,
+      uploadBytesResumable,
+      getDownloadURL
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
-let selectedFile = null;
+    // ====== 3) Init ======
+    const app = initializeApp(firebaseConfig);
+    const storage = getStorage(app);
 
-document.getElementById("fileInput").addEventListener("change", function(event) {
-    selectedFile = event.target.files[0];
-    if (!selectedFile) return;
+    // ====== 4) UI state ======
+    const fileInput = document.getElementById("fileInput");
+    const preview = document.getElementById("preview");
+    const statusEl = document.getElementById("status");
+    const smallEl = document.getElementById("small");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const retakeBtn = document.getElementById("retakeBtn");
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const preview = document.getElementById("preview");
+    let selectedFile = null;
+    let lastUploadTime = 0;
+    const COOLDOWN_MS = 10000;
+
+    // Where the file will live in Firebase Storage:
+    const STORAGE_PATH = "uploads/latest.png";
+
+    fileInput.addEventListener("change", (event) => {
+      selectedFile = event.target.files?.[0] || null;
+
+      if (!selectedFile) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
         preview.src = e.target.result;
         preview.style.display = "block";
-    };
-    reader.readAsDataURL(selectedFile);
-});
+        statusEl.innerText = "";
+        smallEl.innerText = "";
+      };
+      reader.readAsDataURL(selectedFile);
+    });
 
-async function uploadImage() {
-    if (!selectedFile) {
-        document.getElementById("status").innerText = "No image selected.";
+    function retake() {
+      fileInput.value = "";
+      selectedFile = null;
+      preview.src = "";
+      preview.style.display = "none";
+      statusEl.innerText = "";
+      smallEl.innerText = "";
+    }
+
+    async function uploadImage() {
+      const now = Date.now();
+      if (now - lastUploadTime < COOLDOWN_MS) {
+        const waitSec = Math.ceil((COOLDOWN_MS - (now - lastUploadTime)) / 1000);
+        statusEl.innerText = `Please wait ${waitSec}s before uploading again.`;
         return;
+      }
+
+      if (!selectedFile) {
+        statusEl.innerText = "No image selected.";
+        return;
+      }
+
+      statusEl.innerText = "Starting upload...";
+      smallEl.innerText = "";
+
+      // Make a ref to the exact file path
+      const fileRef = ref(storage, STORAGE_PATH);
+
+      // Upload with progress
+      const uploadTask = uploadBytesResumable(fileRef, selectedFile, {
+        contentType: selectedFile.type || "image/png",
+        cacheControl: "no-cache"
+      });
+
+      uploadBtn.disabled = true;
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          statusEl.innerText = `Uploading... ${pct}%`;
+        },
+        (error) => {
+          console.error(error);
+          statusEl.innerText = `Upload failed: ${error.message}`;
+          uploadBtn.disabled = false;
+        },
+        async () => {
+          lastUploadTime = Date.now();
+          statusEl.innerText = "Upload successful ✅";
+          uploadBtn.disabled = false;
+
+          // Get the public download URL (this is what Unity can read later)
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+
+          // Add cache-buster so Unity/phones don’t show an old cached image
+          const cacheBusted = `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+          smallEl.innerText = `Download URL (for Unity later):\n${cacheBusted}`;
+        }
+      );
     }
 
-    document.getElementById("status").innerText = "Uploading...";
-
-    const imageRef = ref(storage, "latest.png");
-
-    try {
-        await uploadBytes(imageRef, selectedFile);
-        document.getElementById("status").innerText = "Upload successful!";
-    } catch (error) {
-        document.getElementById("status").innerText = "Upload failed.";
-        console.error(error);
-    }
-}
-
-window.uploadImage = uploadImage;
-
-</script>
-
+    uploadBtn.addEventListener("click", uploadImage);
+    retakeBtn.addEventListener("click", retake);
+  </script>
 </body>
 </html>
